@@ -1,0 +1,39 @@
+# Screenshots folder - ignore all images
+screenshot/
+# Only ignore PNG files in screenshot folder, not root directory
+screenshot/*.png
+screenshot/*.jpg
+screenshot/*.jpeg
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+venv/
+
+
+
+
+
+
+
+
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
