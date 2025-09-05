@@ -22,11 +22,84 @@ class SteamGameMonitor:
         self.stop_typing = False
         self.screenshot_dir = "./screenshot"
         self.bongo_cat_window = None
+        self.max_screenshots_per_category = 5  # Keep 5 most recent screenshots per category
         
         # Create screenshot directory if it doesn't exist
         if not os.path.exists(self.screenshot_dir):
             os.makedirs(self.screenshot_dir)
             print(f"Created screenshot directory: {self.screenshot_dir}")
+    
+    def cleanup_old_screenshots(self):
+        """Keep only the most recent screenshots per category for OpenCV training"""
+        try:
+            if not os.path.exists(self.screenshot_dir):
+                return
+            
+            # Define screenshot categories based on filename patterns
+            categories = {
+                'chest_found': [],
+                'chest_search': [],
+                'taskbar_icon_found': [],
+                'taskbar_search': [],
+                'chest_not_found': [],
+                'bongo_cat': []
+            }
+            
+            # Categorize all screenshot files
+            for filename in os.listdir(self.screenshot_dir):
+                if filename.endswith(('.png', '.jpg', '.jpeg')):
+                    filepath = os.path.join(self.screenshot_dir, filename)
+                    mtime = os.path.getmtime(filepath)
+                    
+                    # Determine category based on filename
+                    if 'chest_found' in filename:
+                        categories['chest_found'].append((mtime, filepath))
+                    elif 'chest_search' in filename:
+                        categories['chest_search'].append((mtime, filepath))
+                    elif 'taskbar_icon_found' in filename:
+                        categories['taskbar_icon_found'].append((mtime, filepath))
+                    elif 'taskbar_search' in filename:
+                        categories['taskbar_search'].append((mtime, filepath))
+                    elif 'chest_not_found' in filename:
+                        categories['chest_not_found'].append((mtime, filepath))
+                    elif 'bongo_cat' in filename:
+                        categories['bongo_cat'].append((mtime, filepath))
+            
+            total_deleted = 0
+            total_kept = 0
+            
+            # Clean up each category
+            for category, files in categories.items():
+                if not files:
+                    continue
+                    
+                # Sort by modification time (newest first)
+                files.sort(reverse=True)
+                
+                # Keep only the most recent ones per category
+                if len(files) > self.max_screenshots_per_category:
+                    files_to_delete = files[self.max_screenshots_per_category:]
+                    for _, filepath in files_to_delete:
+                        try:
+                            os.remove(filepath)
+                            print(f"🗑️ Cleaned up old {category}: {os.path.basename(filepath)}")
+                            total_deleted += 1
+                        except Exception as e:
+                            print(f"⚠️ Could not delete {filepath}: {e}")
+                    
+                    kept_count = min(len(files), self.max_screenshots_per_category)
+                    total_kept += kept_count
+                    print(f"📸 Kept {kept_count} most recent {category} screenshots")
+                else:
+                    total_kept += len(files)
+            
+            if total_deleted > 0:
+                print(f"📸 Screenshot cleanup complete: {total_deleted} deleted, {total_kept} kept")
+            else:
+                print(f"📸 Screenshot storage: {total_kept} images (within limits)")
+                
+        except Exception as e:
+            print(f"⚠️ Error cleaning up screenshots: {e}")
         
     def is_steam_game_running(self):
         """Check if any Steam game is currently running"""
@@ -633,6 +706,8 @@ class SteamGameMonitor:
                 cv2.imwrite(verification_path, img)
                 print(f"✅ Screenshot with detected taskbar icon saved as {verification_path}")
                 
+                # Clean up old screenshots to keep only 10 most recent
+                self.cleanup_old_screenshots()
                 return True
             else:
                 print(f"❌ Bongo Cat taskbar icon not found. Best match confidence: {max_val:.4f} (threshold: {threshold})")
@@ -765,10 +840,12 @@ class SteamGameMonitor:
         if self.countdown_active:
             print(f"\n\nCycle {cycle_number} completed! Taking screenshot and opening chest...")
             
-            # Take screenshot and find chest
+            # Take screenshot and find chest with retry mechanism
             chest_found = self.take_screenshot_and_find_chest()
             if not chest_found:
-                print("🛑 Program stopped due to chest detection failure.")
+                print("🛑 Program stopped due to chest detection failure after 6 attempts.")
+                # Set a flag to indicate program should stop
+                self.countdown_active = False
                 return
 
     def start_countdown(self, cycle_number=None):
@@ -863,6 +940,9 @@ class SteamGameMonitor:
                 verification_path = os.path.join(self.screenshot_dir, f"chest_found_{timestamp}.png")
                 cv2.imwrite(verification_path, img)
                 print(f"✅ Screenshot with detected chest saved as {verification_path}")
+                
+                # Clean up old screenshots to keep only 10 most recent
+                self.cleanup_old_screenshots()
                 return True
                 
             else:
@@ -899,6 +979,9 @@ class SteamGameMonitor:
                     verification_path = os.path.join(self.screenshot_dir, f"chest_found_low_thresh_{timestamp}.png")
                     cv2.imwrite(verification_path, img)
                     print(f"✅ Screenshot with detected chest saved as {verification_path}")
+                    
+                    # Clean up old screenshots to keep only 10 most recent
+                    self.cleanup_old_screenshots()
                     return True
                 else:
                     # Still save the screenshot for manual inspection
@@ -1022,13 +1105,15 @@ class SteamGameMonitor:
                     
                     self.is_game_running = True
                     self.start_countdown_chest_only(cycle_count)
-                    # If we reach here, chest detection failed and program stopped
-                    print("🛑 Program stopped due to chest detection failure.")
-                    break
+                    
+                    # Check if program stopped due to chest detection failure
+                    if not self.countdown_active:
+                        print("🛑 Program stopped due to chest detection failure.")
+                        break
                     
                     # Reset for next cycle
                     self.is_game_running = False
-                    self.countdown_active = False
+                    self.countdown_active = True  # Reset for next cycle
                     
                     print(f"\n⏳ Cycle {cycle_count} completed. Waiting for next 30-minute cycle...")
                     print("Press Ctrl+C to stop, or wait for next cycle...")

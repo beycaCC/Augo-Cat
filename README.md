@@ -166,6 +166,24 @@ D:\Augo-Cat\
     └── (screenshots are saved here automatically)
 ```
 
+## 📸 Screenshot Management
+
+The program automatically manages screenshots for optimal OpenCV training:
+
+### Categories
+- **`chest_found_*`** - Screenshots when chest is successfully detected
+- **`chest_search_*`** - Screenshots when searching for chest
+- **`taskbar_icon_found_*`** - Screenshots when Bongo Cat taskbar icon is found
+- **`taskbar_search_*`** - Screenshots when searching for taskbar icon
+- **`chest_not_found_*`** - Screenshots when chest detection fails
+- **`bongo_cat_*`** - General Bongo Cat screenshots
+
+### Smart Cleanup
+- **Keeps 5 most recent images per category**
+- **Maximum 20 images total** (4 main categories × 5 images each)
+- **Automatic cleanup** after each screenshot is saved
+- **Perfect for OpenCV training** with balanced dataset
+
 ## 🔧 Advanced Settings
 
 ### Customizing Character Count
